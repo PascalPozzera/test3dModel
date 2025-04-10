@@ -36,10 +36,12 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
 
   useEffect(() => {
     if (!group.current) return;
-    group.current.position.set(-20, 0, -8); // am Rand spawnen statt in der Mitte
+    group.current.position.set(-20, 0, -8); // irgendwo spqwnen wo kein Hindernis ist.
     mixer.current = new THREE.AnimationMixer(group.current);
     setTimeout(() => setActiveAnimation('idle'), 0);
-    return () => mixer.current?.stopAllAction();
+    return () => {
+      mixer.current?.stopAllAction(); // Funktion wird korrekt im Cleanup aufgerufen
+    };
   }, []);
 
   useEffect(() => {
