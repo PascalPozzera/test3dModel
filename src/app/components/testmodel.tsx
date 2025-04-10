@@ -19,11 +19,12 @@ const mapData = [
 
 const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   const group = useRef<THREE.Group>(null);
-  const [movementDirection, setMovementDirection] = useState<'up' | 'down' | 'left' | 'right' | null>(null);
+  const pressedKeys = useRef<Set<string>>(new Set());
 
   useImperativeHandle(ref, () => group.current!, []);
 
   const [gridPos, setGridPos] = useState({ x: 2, z: 2 });
+  const [movementDirection, setMovementDirection] = useState<'up' | 'down' | 'left' | 'right' | null>(null);
   const [activeAnimation, setActiveAnimation] = useState<'walk_forward' | 'walk_back' | 'idle'>('idle');
   const [rotationY, setRotationY] = useState(0);
   const [isMoving, setIsMoving] = useState(false);
@@ -47,71 +48,42 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   useEffect(() => {
     if (!group.current) return;
     mixer.current = new THREE.AnimationMixer(group.current);
-
-    requestAnimationFrame(() => {
-      setActiveAnimation('idle');
-    });
-
-    return () => {
-      mixer.current?.stopAllAction();
-    };
+    setTimeout(() => setActiveAnimation('idle'), 0);
+    return () => mixer.current?.stopAllAction();
   }, []);
 
   useEffect(() => {
     if (!mixer.current || !activeAnimation) return;
-
     const clips = animationsMap[activeAnimation];
     if (!clips || clips.length === 0) return;
-
     const clip = clips.reduce((longest, current) =>
       current.duration > longest.duration ? current : longest,
       clips[0]
     );
-
-    if (!clip) return;
-
     clip.tracks = clip.tracks.filter(
-      (track) =>
-        !track.name.endsWith('.position') || !track.name.includes('Hips')
+      (track) => !track.name.endsWith('.position') || !track.name.includes('Hips')
     );
 
-    if (currentAction.current) {
-      currentAction.current.fadeOut(0.2);
-    }
-
     const action = mixer.current.clipAction(clip);
-    action.reset().fadeIn(0.2).play();
-    currentAction.current = action;
+    if (currentAction.current !== action) {
+      currentAction.current?.fadeOut(0.2);
+      action.reset().fadeIn(0.2).play();
+      currentAction.current = action;
+    }
   }, [activeAnimation]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (movementDirection !== null) return;
-
-      let dir: 'up' | 'down' | 'left' | 'right' | null = null;
-      let nextAnim: typeof activeAnimation = 'walk_forward';
-      let rot = rotationY;
-
-      if (e.key === 'w' || e.key === 'ArrowUp') {
-        dir = 'up'; nextAnim = 'walk_forward'; rot = 0;
-      } else if (e.key === 's' || e.key === 'ArrowDown') {
-        dir = 'down'; nextAnim = 'walk_back'; rot = Math.PI;
-      } else if (e.key === 'a' || e.key === 'ArrowLeft') {
-        dir = 'left'; nextAnim = 'walk_forward'; rot = Math.PI / 2;
-      } else if (e.key === 'd' || e.key === 'ArrowRight') {
-        dir = 'right'; nextAnim = 'walk_forward'; rot = -Math.PI / 2;
-      }
-
-      if (dir) {
-        setMovementDirection(dir);
-        setRotationY(rot);
-        setActiveAnimation(nextAnim);
-      }
+      if (pressedKeys.current.has(e.key)) return;
+      pressedKeys.current.add(e.key);
     };
 
-    const handleKeyUp = () => {
-      setMovementDirection(null);
-      setActiveAnimation('idle');
+    const handleKeyUp = (e: KeyboardEvent) => {
+      pressedKeys.current.delete(e.key);
+      if (pressedKeys.current.size === 0) {
+        setMovementDirection(null);
+        setActiveAnimation('idle');
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -120,35 +92,52 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [rotationY, movementDirection]);
+  }, []);
 
   useFrame((_, delta) => {
     mixer.current?.update(delta);
-
     if (!group.current) return;
 
     const pos = group.current.position;
     const speed = 4;
     const gridOffset = 2;
 
-    if (!isMoving && movementDirection) {
-      const next = { ...gridPos };
+    if (!isMoving) {
+      let dir: 'up' | 'down' | 'left' | 'right' | null = null;
+      let nextAnim: typeof activeAnimation = 'walk_forward';
+      let rot = rotationY;
 
-      if (movementDirection === 'up') next.z -= 1;
-      if (movementDirection === 'down') next.z += 1;
-      if (movementDirection === 'left') next.x -= 1;
-      if (movementDirection === 'right') next.x += 1;
+      if (pressedKeys.current.has('w') || pressedKeys.current.has('ArrowUp')) {
+        dir = 'up'; nextAnim = 'walk_forward'; rot = 0;
+      } else if (pressedKeys.current.has('s') || pressedKeys.current.has('ArrowDown')) {
+        dir = 'down'; nextAnim = 'walk_back'; rot = Math.PI;
+      } else if (pressedKeys.current.has('a') || pressedKeys.current.has('ArrowLeft')) {
+        dir = 'left'; nextAnim = 'walk_forward'; rot = Math.PI / 2;
+      } else if (pressedKeys.current.has('d') || pressedKeys.current.has('ArrowRight')) {
+        dir = 'right'; nextAnim = 'walk_forward'; rot = -Math.PI / 2;
+      }
 
-      const isInside =
-        next.z >= 0 && next.z < mapData.length &&
-        next.x >= 0 && next.x < mapData[0].length;
+      if (dir) {
+        const next = { ...gridPos };
+        if (dir === 'up') next.z -= 1;
+        if (dir === 'down') next.z += 1;
+        if (dir === 'left') next.x -= 1;
+        if (dir === 'right') next.x += 1;
 
-      const isNotBlocked = isInside && mapData[next.z][next.x] !== 1;
+        const isInside =
+          next.z >= 0 && next.z < mapData.length &&
+          next.x >= 0 && next.x < mapData[0].length;
 
-      if (isNotBlocked) {
-        setGridPos(next);
-        targetPosition.current.set(next.x - gridOffset, 0, next.z - gridOffset);
-        setIsMoving(true);
+        const isNotBlocked = isInside && mapData[next.z][next.x] !== 1;
+
+        if (isNotBlocked) {
+          setGridPos(next);
+          targetPosition.current.set(next.x - gridOffset, 0, next.z - gridOffset);
+          setIsMoving(true);
+          setMovementDirection(dir);
+          setRotationY(rot);
+          setActiveAnimation(nextAnim);
+        }
       }
     }
 
