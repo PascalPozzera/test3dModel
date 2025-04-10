@@ -14,7 +14,7 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
 
   useImperativeHandle(ref, () => group.current!, []);
 
-  const [activeAnimation, setActiveAnimation] = useState<'walk_forward' | 'walk_back' | 'dance' | 'test' | 'idle'>('idle');
+  const [activeAnimation, setActiveAnimation] = useState<'walk_forward' | 'walk_back' | 'dance1' | 'dance2' | 'idle'>('idle');
 
   const mixer = useRef<THREE.AnimationMixer | null>(null);
   const currentAction = useRef<THREE.AnimationAction | null>(null);
@@ -23,19 +23,20 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   const walkForward = useGLTF('/models/walk_forward.glb');
   const walkBack = useGLTF('/models/walk_forward.glb');
   const idle = useGLTF('/models/idle.glb');
-  const test = useGLTF('/models/t.glb')
-  const dance = useGLTF('/models/test.glb');
+  const dance1 = useGLTF('/models/t.glb')
+  const dance2 = useGLTF('/models/test.glb');
 
   const animationsMap: Record<string, THREE.AnimationClip[]> = {
     walk_forward: walkForward.animations,
     walk_back: walkBack.animations,
     idle: idle.animations,
-    dance : dance.animations,
-    test : test.animations,
+    dance1 : dance1.animations,
+    dance2 : dance2.animations,
   };
 
   useEffect(() => {
     if (!group.current) return;
+    group.current.position.set(-20, 0, -8); // am Rand spawnen statt in der Mitte
     mixer.current = new THREE.AnimationMixer(group.current);
     setTimeout(() => setActiveAnimation('idle'), 0);
     return () => mixer.current?.stopAllAction();
@@ -99,16 +100,15 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     // DANCE OVERRIDE
     if (pressedKeys.current.has('t')) {
 
-      setActiveAnimation('test');
-      return; // <-- wichtig! sonst geht’s weiter zur Bewegung
+      setActiveAnimation('dance1');
+      return; 
     }
-
 
     // DANCE OVERRIDE
     if (pressedKeys.current.has('y')) {
 
-      setActiveAnimation('dance');
-      return; // <-- wichtig! sonst geht’s weiter zur Bewegung
+      setActiveAnimation('dance2');
+      return; 
     }
 
     if (pressedKeys.current.has('w') || pressedKeys.current.has('ArrowUp')) direction.z -= 1;
@@ -142,7 +142,8 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     }
 
     const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(mouse.current, camera);
+    const mouseVector = new THREE.Vector2(mouse.current.x, mouse.current.y);
+    raycaster.setFromCamera(mouseVector, camera);
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     const point = new THREE.Vector3();
     raycaster.ray.intersectPlane(plane, point);

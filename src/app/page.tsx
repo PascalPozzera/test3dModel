@@ -6,9 +6,6 @@ import AnimatedCharacter from './components/testmodel';
 import FollowCamera from './components/FollowCamera';
 import * as THREE from 'three';
 import GameMap from './components/GameMap';
-import { Box } from '@react-three/drei';
-
-
 
 export default function Page() {
   const characterRef = useRef<THREE.Group>(null);
