@@ -19,12 +19,16 @@ const mapData = [
 
 const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   const group = useRef<THREE.Group>(null);
+  const [movementDirection, setMovementDirection] = useState<'up' | 'down' | 'left' | 'right' | null>(null);
+
   useImperativeHandle(ref, () => group.current!, []);
 
   const [gridPos, setGridPos] = useState({ x: 2, z: 2 });
   const [activeAnimation, setActiveAnimation] = useState<'walk_forward' | 'walk_back' | ''>('');
   const [rotationY, setRotationY] = useState(0);
   const [isMoving, setIsMoving] = useState(false);
+
+  const targetPosition = useRef(new THREE.Vector3(gridPos.x - 2, 0, gridPos.z - 2));
 
   const mixer = useRef<THREE.AnimationMixer | null>(null);
   const currentAction = useRef<THREE.AnimationAction | null>(null);
@@ -67,11 +71,11 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     }
 
     const clip = clips.reduce((longest, current) =>
-        current.duration > longest.duration ? current : longest, clips[0]);
+      current.duration > longest.duration ? current : longest, clips[0]);
 
     clip.tracks = clip.tracks.filter(
-        (track) =>
-            !track.name.endsWith('.position') || !track.name.includes('Hips')
+      (track) =>
+        !track.name.endsWith('.position') || !track.name.includes('Hips')
     );
 
     const action = mixer.current.clipAction(clip);
@@ -81,50 +85,32 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isMoving) return;
+      if (movementDirection !== null) return;
 
-      let targetX = gridPos.x;
-      let targetZ = gridPos.z;
-      let nextAnimation: '' | 'walk_forward' | 'walk_back' = '';
-      let newRotation = rotationY;
+      let dir: 'up' | 'down' | 'left' | 'right' | null = null;
+      let nextAnim: typeof activeAnimation = '';
+      let rot = rotationY;
 
       if (e.key === 'w' || e.key === 'ArrowUp') {
-        targetZ -= 1;
-        nextAnimation = 'walk_forward';
-        newRotation = 0;
+        dir = 'up'; nextAnim = 'walk_forward'; rot = 0;
       } else if (e.key === 's' || e.key === 'ArrowDown') {
-        targetZ += 1;
-        nextAnimation = 'walk_back';
-        newRotation = Math.PI;
+        dir = 'down'; nextAnim = 'walk_back'; rot = Math.PI;
       } else if (e.key === 'a' || e.key === 'ArrowLeft') {
-        targetX -= 1;
-        nextAnimation = 'walk_forward'; // gleiche Animation nach links
-        newRotation = Math.PI / 2; // 90° nach links
+        dir = 'left'; nextAnim = 'walk_forward'; rot = Math.PI / 2;
       } else if (e.key === 'd' || e.key === 'ArrowRight') {
-        targetX += 1;
-        nextAnimation = 'walk_forward'; // gleiche Animation nach rechts
-        newRotation = -Math.PI / 2; // -90° nach rechts
+        dir = 'right'; nextAnim = 'walk_forward'; rot = -Math.PI / 2;
       }
 
-      const isInsideMap =
-          targetZ >= 0 &&
-          targetZ < mapData.length &&
-          targetX >= 0 &&
-          targetX < mapData[0].length;
-
-      const isNotBlocked = isInsideMap && mapData[targetZ][targetX] !== 1;
-      const hasMoved = targetX !== gridPos.x || targetZ !== gridPos.z;
-
-      if (isNotBlocked && hasMoved) {
-        setGridPos({ x: targetX, z: targetZ });
-        setIsMoving(true);
-        setActiveAnimation(nextAnimation);
-        setRotationY(newRotation);
+      if (dir) {
+        setMovementDirection(dir);
+        setRotationY(rot);
+        setActiveAnimation(nextAnim);
       }
     };
 
     const handleKeyUp = () => {
-      // Animation wird gestoppt, sobald Bewegung fertig
+      setMovementDirection(null);
+      setActiveAnimation('');
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -133,23 +119,52 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [gridPos, rotationY, isMoving]);
+  }, [rotationY, movementDirection]);
 
   useFrame((_, delta) => {
     mixer.current?.update(delta);
 
-    if (group.current) {
-      const targetPos = new THREE.Vector3(gridPos.x - 2, 0, gridPos.z - 2);
-      group.current.position.lerp(targetPos, 0.1);
+    if (!group.current) return;
 
-      if (group.current.position.distanceTo(targetPos) < 0.01) {
-        group.current.position.copy(targetPos);
-        setIsMoving(false);
-        setActiveAnimation('');
+    const pos = group.current.position;
+    const speed = 4;
+    const gridOffset = 2;
+
+    if (!isMoving && movementDirection) {
+      const next = { ...gridPos };
+
+      if (movementDirection === 'up') next.z -= 1;
+      if (movementDirection === 'down') next.z += 1;
+      if (movementDirection === 'left') next.x -= 1;
+      if (movementDirection === 'right') next.x += 1;
+
+      const isInside =
+        next.z >= 0 && next.z < mapData.length &&
+        next.x >= 0 && next.x < mapData[0].length;
+
+      const isNotBlocked = isInside && mapData[next.z][next.x] !== 1;
+
+      if (isNotBlocked) {
+        setGridPos(next);
+        targetPosition.current.set(next.x - gridOffset, 0, next.z - gridOffset);
+        setIsMoving(true);
       }
-
-      group.current.rotation.y = rotationY + Math.PI; // Rücken in Bewegungsrichtung
     }
+
+    const target = targetPosition.current;
+    const dir = new THREE.Vector3().subVectors(target, pos);
+    const distance = dir.length();
+    const step = speed * delta;
+
+    if (distance <= step) {
+      pos.copy(target);
+      setIsMoving(false);
+    } else {
+      dir.normalize();
+      pos.addScaledVector(dir, step);
+    }
+
+    group.current.rotation.y = rotationY + Math.PI;
   });
 
   return <primitive ref={group} object={characterScene} />;
