@@ -24,7 +24,7 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   useImperativeHandle(ref, () => group.current!, []);
 
   const [gridPos, setGridPos] = useState({ x: 2, z: 2 });
-  const [activeAnimation, setActiveAnimation] = useState<'walk_forward' | 'walk_back' | ''>('');
+  const [activeAnimation, setActiveAnimation] = useState<'walk_forward' | 'walk_back' | 'idle'>('idle');
   const [rotationY, setRotationY] = useState(0);
   const [isMoving, setIsMoving] = useState(false);
 
@@ -34,49 +34,50 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   const currentAction = useRef<THREE.AnimationAction | null>(null);
 
   const { scene: characterScene } = useGLTF('/models/character.glb');
-  const walkForward = useGLTF('/models/walk_forward_animation.glb');
-  const walkBack = useGLTF('/models/walk_forward_animation.glb');
+  const walkForward = useGLTF('/models/walk_forward.glb');
+  const walkBack = useGLTF('/models/walk_forward.glb');
+  const idle = useGLTF('/models/idle.glb');
 
   const animationsMap: Record<string, THREE.AnimationClip[]> = {
     walk_forward: walkForward.animations,
     walk_back: walkBack.animations,
+    idle: idle.animations,
   };
 
   useEffect(() => {
     if (!group.current) return;
     mixer.current = new THREE.AnimationMixer(group.current);
+
+    requestAnimationFrame(() => {
+      setActiveAnimation('idle');
+    });
+
     return () => {
       mixer.current?.stopAllAction();
     };
   }, []);
 
   useEffect(() => {
-    if (!mixer.current) return;
-
-    if (activeAnimation === '') {
-      currentAction.current?.fadeOut(0.2);
-      currentAction.current = null;
-      return;
-    }
-
-    if (currentAction.current) {
-      currentAction.current.fadeOut(0.2);
-    }
+    if (!mixer.current || !activeAnimation) return;
 
     const clips = animationsMap[activeAnimation];
-
-    if (!clips || clips.length === 0) {
-      console.warn('⚠️ Keine Animationen gefunden für:', activeAnimation);
-      return;
-    }
+    if (!clips || clips.length === 0) return;
 
     const clip = clips.reduce((longest, current) =>
-      current.duration > longest.duration ? current : longest, clips[0]);
+      current.duration > longest.duration ? current : longest,
+      clips[0]
+    );
+
+    if (!clip) return;
 
     clip.tracks = clip.tracks.filter(
       (track) =>
         !track.name.endsWith('.position') || !track.name.includes('Hips')
     );
+
+    if (currentAction.current) {
+      currentAction.current.fadeOut(0.2);
+    }
 
     const action = mixer.current.clipAction(clip);
     action.reset().fadeIn(0.2).play();
@@ -88,7 +89,7 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
       if (movementDirection !== null) return;
 
       let dir: 'up' | 'down' | 'left' | 'right' | null = null;
-      let nextAnim: typeof activeAnimation = '';
+      let nextAnim: typeof activeAnimation = 'walk_forward';
       let rot = rotationY;
 
       if (e.key === 'w' || e.key === 'ArrowUp') {
@@ -110,7 +111,7 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
 
     const handleKeyUp = () => {
       setMovementDirection(null);
-      setActiveAnimation('');
+      setActiveAnimation('idle');
     };
 
     window.addEventListener('keydown', handleKeyDown);
