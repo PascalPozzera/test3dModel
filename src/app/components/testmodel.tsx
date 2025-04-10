@@ -4,7 +4,7 @@ import { forwardRef, useEffect, useRef, useImperativeHandle, useState } from 're
 import { useGLTF } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { obstacleRefs } from './GameMap'; // Import obstacleRefs from GameMap
+import { obstacleRefs } from './GameMap';
 
 const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   const group = useRef<THREE.Group>(null);
@@ -14,15 +14,26 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
 
   useImperativeHandle(ref, () => group.current!, []);
 
-  const [activeAnimation, setActiveAnimation] = useState<'walk_forward' | 'walk_back' | 'dance1' | 'dance2' | 'idle'>('idle');
+  const [activeAnimation, setActiveAnimation] = useState<'walk_forward' | 'walk_back' | 'dance1' | 'dance2' | 'fireRifle' | 'idle'>('idle');
 
   const mixer = useRef<THREE.AnimationMixer | null>(null);
   const currentAction = useRef<THREE.AnimationAction | null>(null);
 
   const { scene: characterScene } = useGLTF('/models/character.glb');
+
+  //each character has its own animation, so we need to load them separately from characterservice?
+
+  //walking
   const walkForward = useGLTF('/models/walk_forward.glb');
   const walkBack = useGLTF('/models/walk_forward.glb');
+
+  //idle
   const idle = useGLTF('/models/idle.glb');
+
+  //fire rifle
+  const fireRifle = useGLTF('/models/fireRifle.glb');
+
+  //dance moves
   const dance1 = useGLTF('/models/t.glb')
   const dance2 = useGLTF('/models/test.glb');
 
@@ -32,15 +43,16 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     idle: idle.animations,
     dance1 : dance1.animations,
     dance2 : dance2.animations,
+    fireRifle: fireRifle.animations,
   };
 
   useEffect(() => {
     if (!group.current) return;
-    group.current.position.set(-20, 0, -8); // irgendwo spqwnen wo kein Hindernis ist.
+    group.current.position.set(-20, 0, -8); // irgendwo spawnen wo kein Hindernis ist.
     mixer.current = new THREE.AnimationMixer(group.current);
     setTimeout(() => setActiveAnimation('idle'), 0);
     return () => {
-      mixer.current?.stopAllAction(); // Funktion wird korrekt im Cleanup aufgerufen
+      mixer.current?.stopAllAction();
     };
   }, []);
 
@@ -81,9 +93,18 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
       mouse.current.y = -(e.clientY / window.innerHeight) * 2 + 1;
     };
 
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 0) {        
+        setActiveAnimation('fireRifle');
+        
+        
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousedown', handleMouseDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
@@ -99,16 +120,14 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     const speed = 6;
     const direction = new THREE.Vector3();
 
-    // DANCE OVERRIDE
+    // dance override
     if (pressedKeys.current.has('t')) {
-
       setActiveAnimation('dance1');
       return; 
     }
 
-    // DANCE OVERRIDE
+    // dance override
     if (pressedKeys.current.has('y')) {
-
       setActiveAnimation('dance2');
       return; 
     }
@@ -137,10 +156,10 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
         pos.copy(newPos);
         setActiveAnimation(direction.z > 0 ? 'walk_back' : 'walk_forward');
       } else {
-        setActiveAnimation('idle');
+        //setActiveAnimation('idle');
       }
     } else {
-      setActiveAnimation('idle');
+      //setActiveAnimation('idle');
     }
 
     const raycaster = new THREE.Raycaster();

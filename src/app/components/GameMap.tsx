@@ -28,7 +28,6 @@ export default function GameMap() {
     return elements;
   }, []);
 
-  // 🔺 Hindernisse (Symmetrisch, strategisch)
   const obstaclePositions: [number, number, number][] = [
     [0, 1, 0],
     [-8, 1, -8],
