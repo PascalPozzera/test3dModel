@@ -2,34 +2,19 @@
 
 import { forwardRef, useEffect, useRef, useImperativeHandle, useState } from 'react';
 import { useGLTF } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-
-const mapData = [
-  [1, 0, 0, 2, 2, 0, 0, 0, 0],
-  [0, 0, 1, 0, 0, 0, 0, 0, 0],
-  [0, 1, 0, 0, 1, 0, 0, 0, 0],
-  [2, 0, 0, 1, 0, 0, 0, 0, 0],
-  [2, 2, 0, 0, 1, 0, 0, 0, 0],
-  [2, 2, 0, 0, 1, 0, 0, 0, 0],
-  [2, 2, 0, 0, 1, 0, 0, 0, 0],
-  [2, 2, 0, 0, 1, 0, 0, 0, 0],
-  [2, 2, 0, 0, 1, 0, 0, 0, 0],
-];
 
 const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   const group = useRef<THREE.Group>(null);
   const pressedKeys = useRef<Set<string>>(new Set());
+  const mouse = useRef(new THREE.Vector2());
+
+  const { camera } = useThree();
 
   useImperativeHandle(ref, () => group.current!, []);
 
-  const [gridPos, setGridPos] = useState({ x: 2, z: 2 });
-  const [movementDirection, setMovementDirection] = useState<'up' | 'down' | 'left' | 'right' | null>(null);
   const [activeAnimation, setActiveAnimation] = useState<'walk_forward' | 'walk_back' | 'idle'>('idle');
-  const [rotationY, setRotationY] = useState(0);
-  const [isMoving, setIsMoving] = useState(false);
-
-  const targetPosition = useRef(new THREE.Vector3(gridPos.x - 2, 0, gridPos.z - 2));
 
   const mixer = useRef<THREE.AnimationMixer | null>(null);
   const currentAction = useRef<THREE.AnimationAction | null>(null);
@@ -74,23 +59,31 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (pressedKeys.current.has(e.key)) return;
       pressedKeys.current.add(e.key);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
       pressedKeys.current.delete(e.key);
       if (pressedKeys.current.size === 0) {
-        setMovementDirection(null);
         setActiveAnimation('idle');
       }
     };
 
+    const handleMouseMove = (e: MouseEvent) => {
+      mouse.current.set(
+        (e.clientX / window.innerWidth) * 2 - 1,
+        -(e.clientY / window.innerHeight) * 2 + 1
+      );
+    };
+    
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('mousemove', handleMouseMove);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('mousemove', handleMouseMove);
     };
   }, []);
 
@@ -100,64 +93,41 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
 
     const pos = group.current.position;
     const speed = 4;
-    const gridOffset = 2;
+    const direction = new THREE.Vector3();
 
-    if (!isMoving) {
-      let dir: 'up' | 'down' | 'left' | 'right' | null = null;
-      let nextAnim: typeof activeAnimation = 'walk_forward';
-      let rot = rotationY;
-
-      if (pressedKeys.current.has('w') || pressedKeys.current.has('ArrowUp')) {
-        dir = 'up'; nextAnim = 'walk_forward'; rot = 0;
-      } else if (pressedKeys.current.has('s') || pressedKeys.current.has('ArrowDown')) {
-        dir = 'down'; nextAnim = 'walk_back'; rot = Math.PI;
-      } else if (pressedKeys.current.has('a') || pressedKeys.current.has('ArrowLeft')) {
-        dir = 'left'; nextAnim = 'walk_forward'; rot = Math.PI / 2;
-      } else if (pressedKeys.current.has('d') || pressedKeys.current.has('ArrowRight')) {
-        dir = 'right'; nextAnim = 'walk_forward'; rot = -Math.PI / 2;
-      }
-
-      if (dir) {
-        const next = { ...gridPos };
-        if (dir === 'up') next.z -= 1;
-        if (dir === 'down') next.z += 1;
-        if (dir === 'left') next.x -= 1;
-        if (dir === 'right') next.x += 1;
-
-        const isInside =
-          next.z >= 0 && next.z < mapData.length &&
-          next.x >= 0 && next.x < mapData[0].length;
-
-        const isNotBlocked = isInside && mapData[next.z][next.x] !== 1;
-
-        if (isNotBlocked) {
-          setGridPos(next);
-          targetPosition.current.set(next.x - gridOffset, 0, next.z - gridOffset);
-          setIsMoving(true);
-          setMovementDirection(dir);
-          setRotationY(rot);
-          setActiveAnimation(nextAnim);
-        }
-      }
+    if (pressedKeys.current.has('w') || pressedKeys.current.has('ArrowUp')) {
+      direction.z -= 1;
+    }
+    if (pressedKeys.current.has('s') || pressedKeys.current.has('ArrowDown')) {
+      direction.z += 1;
+    }
+    if (pressedKeys.current.has('a') || pressedKeys.current.has('ArrowLeft')) {
+      direction.x -= 1;
+    }
+    if (pressedKeys.current.has('d') || pressedKeys.current.has('ArrowRight')) {
+      direction.x += 1;
     }
 
-    const target = targetPosition.current;
-    const dir = new THREE.Vector3().subVectors(target, pos);
-    const distance = dir.length();
-    const step = speed * delta;
-
-    if (distance <= step) {
-      pos.copy(target);
-      setIsMoving(false);
+    if (direction.lengthSq() > 0) {
+      direction.normalize();
+      pos.addScaledVector(direction, speed * delta);
+      setActiveAnimation(direction.z > 0 ? 'walk_back' : 'walk_forward');
     } else {
-      dir.normalize();
-      pos.addScaledVector(dir, step);
+      setActiveAnimation('idle');
     }
 
-    group.current.rotation.y = rotationY + Math.PI;
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse.current, camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const point = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, point);
+
+    const lookDir = new THREE.Vector3().subVectors(point, pos);
+    const angle = Math.atan2(lookDir.x, lookDir.z);
+    group.current.rotation.y = angle;
   });
 
-  return <primitive ref={group} object={characterScene} />;
+  return <primitive ref={group} object={characterScene} scale={2} />;
 });
 
 export default AnimatedCharacter;

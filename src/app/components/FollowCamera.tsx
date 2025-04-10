@@ -1,23 +1,22 @@
-'use client';
-
 import { useFrame, useThree } from '@react-three/fiber';
-import { useRef } from 'react';
+import { RefObject } from 'react';
 import * as THREE from 'three';
 
-type Props = {
-  targetRef: React.RefObject<THREE.Group | null>;
+type FollowCameraProps = {
+  target: RefObject<THREE.Group | null>; // ← wichtig!
 };
 
-export default function FollowCamera({ targetRef }: Props) {
+export default function FollowCamera({ target }: FollowCameraProps) {
   const { camera } = useThree();
-  const offset = useRef(new THREE.Vector3(0, 5, 5));
+  const offset = new THREE.Vector3(0, 5, 10);
 
   useFrame(() => {
-    if (!targetRef.current) return;
-    const target = targetRef.current.position.clone();
-    const cameraPos = target.clone().add(offset.current);
-    camera.position.lerp(cameraPos, 0.1);
-    camera.lookAt(target);
+    if (target.current) {
+      const targetPosition = target.current.position.clone();
+      const cameraPosition = targetPosition.clone().add(offset);
+      camera.position.lerp(cameraPosition, 0.1);
+      camera.lookAt(targetPosition);
+    }
   });
 
   return null;
