@@ -16,8 +16,8 @@ export default function Page() {
   return (
     <Canvas shadows>
       <color attach="background" args={['#87ceeb']} />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 5]} castShadow />
+      <ambientLight intensity={0.8} />
+        <directionalLight position={[10, 10, 5]}  />
       <Suspense fallback={null}>
         <GameMap />      
         <AnimatedCharacter ref={characterRef} />

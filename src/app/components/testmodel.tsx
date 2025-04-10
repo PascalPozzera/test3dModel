@@ -14,7 +14,7 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
 
   useImperativeHandle(ref, () => group.current!, []);
 
-  const [activeAnimation, setActiveAnimation] = useState<'walk_forward' | 'walk_back' | 'idle'>('idle');
+  const [activeAnimation, setActiveAnimation] = useState<'walk_forward' | 'walk_back' | 'dance' | 'test' | 'idle'>('idle');
 
   const mixer = useRef<THREE.AnimationMixer | null>(null);
   const currentAction = useRef<THREE.AnimationAction | null>(null);
@@ -23,11 +23,15 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   const walkForward = useGLTF('/models/walk_forward.glb');
   const walkBack = useGLTF('/models/walk_forward.glb');
   const idle = useGLTF('/models/idle.glb');
+  const test = useGLTF('/models/t.glb')
+  const dance = useGLTF('/models/test.glb');
 
   const animationsMap: Record<string, THREE.AnimationClip[]> = {
     walk_forward: walkForward.animations,
     walk_back: walkBack.animations,
     idle: idle.animations,
+    dance : dance.animations,
+    test : test.animations,
   };
 
   useEffect(() => {
@@ -89,8 +93,23 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     if (!group.current) return;
 
     const pos = group.current.position;
-    const speed = 4;
+    const speed = 6;
     const direction = new THREE.Vector3();
+
+    // DANCE OVERRIDE
+    if (pressedKeys.current.has('t')) {
+
+      setActiveAnimation('test');
+      return; // <-- wichtig! sonst geht’s weiter zur Bewegung
+    }
+
+
+    // DANCE OVERRIDE
+    if (pressedKeys.current.has('y')) {
+
+      setActiveAnimation('dance');
+      return; // <-- wichtig! sonst geht’s weiter zur Bewegung
+    }
 
     if (pressedKeys.current.has('w') || pressedKeys.current.has('ArrowUp')) direction.z -= 1;
     if (pressedKeys.current.has('s') || pressedKeys.current.has('ArrowDown')) direction.z += 1;
@@ -102,8 +121,8 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
       const newPos = pos.clone().addScaledVector(direction, speed * delta);
 
       const characterBox = new THREE.Box3().setFromCenterAndSize(
-        newPos,
-        new THREE.Vector3(1, 2, 1) // approximate size
+          newPos,
+          new THREE.Vector3(1, 2, 1) // approximate size
       );
 
       const collides = obstacleRefs.some(ref => {
