@@ -23,14 +23,15 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
 
   const [gridPos, setGridPos] = useState({ x: 2, z: 2 });
   const [activeAnimation, setActiveAnimation] = useState<'walk_forward' | 'walk_back' | ''>('');
-  const [rotationY, setRotationY] = useState(0); // 0 = vorwärts (Z–)
+  const [rotationY, setRotationY] = useState(0);
+  const [isMoving, setIsMoving] = useState(false);
 
   const mixer = useRef<THREE.AnimationMixer | null>(null);
   const currentAction = useRef<THREE.AnimationAction | null>(null);
 
   const { scene: characterScene } = useGLTF('/models/character.glb');
   const walkForward = useGLTF('/models/walk_forward_animation.glb');
-  const walkBack = useGLTF('/models/walk_back_animation.glb');
+  const walkBack = useGLTF('/models/walk_forward_animation.glb');
 
   const animationsMap: Record<string, THREE.AnimationClip[]> = {
     walk_forward: walkForward.animations,
@@ -68,7 +69,6 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     const clip = clips.reduce((longest, current) =>
         current.duration > longest.duration ? current : longest, clips[0]);
 
-    // Entferne Root-Motion (z. B. mixamo.com.position oder Hips.position)
     clip.tracks = clip.tracks.filter(
         (track) =>
             !track.name.endsWith('.position') || !track.name.includes('Hips')
@@ -81,6 +81,8 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isMoving) return;
+
       let targetX = gridPos.x;
       let targetZ = gridPos.z;
       let nextAnimation: '' | 'walk_forward' | 'walk_back' = '';
@@ -89,11 +91,19 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
       if (e.key === 'w' || e.key === 'ArrowUp') {
         targetZ -= 1;
         nextAnimation = 'walk_forward';
-        newRotation = 0; // Blick nach vorne (Z–)
+        newRotation = 0;
       } else if (e.key === 's' || e.key === 'ArrowDown') {
         targetZ += 1;
         nextAnimation = 'walk_back';
-        newRotation = Math.PI; // Blick zurück (Z+)
+        newRotation = Math.PI;
+      } else if (e.key === 'a' || e.key === 'ArrowLeft') {
+        targetX -= 1;
+        nextAnimation = 'walk_forward'; // gleiche Animation nach links
+        newRotation = Math.PI / 2; // 90° nach links
+      } else if (e.key === 'd' || e.key === 'ArrowRight') {
+        targetX += 1;
+        nextAnimation = 'walk_forward'; // gleiche Animation nach rechts
+        newRotation = -Math.PI / 2; // -90° nach rechts
       }
 
       const isInsideMap =
@@ -107,15 +117,14 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
 
       if (isNotBlocked && hasMoved) {
         setGridPos({ x: targetX, z: targetZ });
+        setIsMoving(true);
         setActiveAnimation(nextAnimation);
         setRotationY(newRotation);
       }
     };
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (['w', 's', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-        setActiveAnimation('');
-      }
+    const handleKeyUp = () => {
+      // Animation wird gestoppt, sobald Bewegung fertig
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -124,13 +133,22 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [gridPos, rotationY]);
+  }, [gridPos, rotationY, isMoving]);
 
   useFrame((_, delta) => {
     mixer.current?.update(delta);
+
     if (group.current) {
-      group.current.position.set(gridPos.x - 2, 0, gridPos.z - 2);
-      group.current.rotation.y = rotationY + Math.PI;
+      const targetPos = new THREE.Vector3(gridPos.x - 2, 0, gridPos.z - 2);
+      group.current.position.lerp(targetPos, 0.1);
+
+      if (group.current.position.distanceTo(targetPos) < 0.01) {
+        group.current.position.copy(targetPos);
+        setIsMoving(false);
+        setActiveAnimation('');
+      }
+
+      group.current.rotation.y = rotationY + Math.PI; // Rücken in Bewegungsrichtung
     }
   });
 
