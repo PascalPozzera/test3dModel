@@ -6,10 +6,12 @@ import AnimatedCharacter from './components/testmodel';
 import FollowCamera from './components/FollowCamera';
 import * as THREE from 'three';
 import GameMap from './components/GameMap';
+import { Box } from '@react-three/drei';
+
+
 
 export default function Page() {
   const characterRef = useRef<THREE.Group>(null);
-
 
   return (
     <Canvas shadows>
@@ -17,7 +19,7 @@ export default function Page() {
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 10, 5]} castShadow />
       <Suspense fallback={null}>
-      <GameMap />
+        <GameMap />      
         <AnimatedCharacter ref={characterRef} />
         <FollowCamera target={characterRef} />
       </Suspense>

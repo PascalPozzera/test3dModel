@@ -4,12 +4,12 @@ import { forwardRef, useEffect, useRef, useImperativeHandle, useState } from 're
 import { useGLTF } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { obstacleRefs } from './GameMap'; // Import obstacleRefs from GameMap
 
 const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   const group = useRef<THREE.Group>(null);
   const pressedKeys = useRef<Set<string>>(new Set());
-  const mouse = useRef(new THREE.Vector2());
-
+  const mouse = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const { camera } = useThree();
 
   useImperativeHandle(ref, () => group.current!, []);
@@ -70,12 +70,9 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-      mouse.current.set(
-        (e.clientX / window.innerWidth) * 2 - 1,
-        -(e.clientY / window.innerHeight) * 2 + 1
-      );
+      mouse.current.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.current.y = -(e.clientY / window.innerHeight) * 2 + 1;
     };
-    
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
@@ -95,23 +92,32 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     const speed = 4;
     const direction = new THREE.Vector3();
 
-    if (pressedKeys.current.has('w') || pressedKeys.current.has('ArrowUp')) {
-      direction.z -= 1;
-    }
-    if (pressedKeys.current.has('s') || pressedKeys.current.has('ArrowDown')) {
-      direction.z += 1;
-    }
-    if (pressedKeys.current.has('a') || pressedKeys.current.has('ArrowLeft')) {
-      direction.x -= 1;
-    }
-    if (pressedKeys.current.has('d') || pressedKeys.current.has('ArrowRight')) {
-      direction.x += 1;
-    }
+    if (pressedKeys.current.has('w') || pressedKeys.current.has('ArrowUp')) direction.z -= 1;
+    if (pressedKeys.current.has('s') || pressedKeys.current.has('ArrowDown')) direction.z += 1;
+    if (pressedKeys.current.has('a') || pressedKeys.current.has('ArrowLeft')) direction.x -= 1;
+    if (pressedKeys.current.has('d') || pressedKeys.current.has('ArrowRight')) direction.x += 1;
 
     if (direction.lengthSq() > 0) {
       direction.normalize();
-      pos.addScaledVector(direction, speed * delta);
-      setActiveAnimation(direction.z > 0 ? 'walk_back' : 'walk_forward');
+      const newPos = pos.clone().addScaledVector(direction, speed * delta);
+
+      const characterBox = new THREE.Box3().setFromCenterAndSize(
+        newPos,
+        new THREE.Vector3(1, 2, 1) // approximate size
+      );
+
+      const collides = obstacleRefs.some(ref => {
+        if (!ref.current) return false;
+        const obstacleBox = new THREE.Box3().setFromObject(ref.current);
+        return characterBox.intersectsBox(obstacleBox);
+      });
+
+      if (!collides) {
+        pos.copy(newPos);
+        setActiveAnimation(direction.z > 0 ? 'walk_back' : 'walk_forward');
+      } else {
+        setActiveAnimation('idle');
+      }
     } else {
       setActiveAnimation('idle');
     }
