@@ -8,7 +8,7 @@ type FollowCameraProps = {
 
 export default function FollowCamera({ target }: FollowCameraProps) {
   const { camera } = useThree();
-  const offset = new THREE.Vector3(0, 7, 7);
+  const offset = new THREE.Vector3(0, 9, 7);
 
   useFrame(() => {
     if (target.current) {
