@@ -42,12 +42,9 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     console.log('Empfangen:', data);
   });
 
-
-
-
   useEffect(() => {
     if (!group.current) return;
-    group.current.position.set(-20, 0, -8);
+    group.current.position.set(-10, 0, -8);
     mixer.current = new THREE.AnimationMixer(group.current);
     setTimeout(() => setActiveAnimation('idle'), 0);
     return () => {

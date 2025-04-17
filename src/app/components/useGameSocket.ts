@@ -20,6 +20,7 @@ export function useGameSocket(onMessage?: (data: any) => void) {
         gameSocket.connect();
 
         gameSocket.onMessage((data: IncomingMessage) => {
+            // ✅ Wichtig: andere Spieler in den Zustand speichern
             if (data.type === 'playerMoved') {
                 if (data.playerId !== playerId) {
                     updatePlayer({
@@ -30,9 +31,9 @@ export function useGameSocket(onMessage?: (data: any) => void) {
                         rotationY: data.rotationY,
                     });
                 }
-                // 👆 ganz wichtig: eigene Nachrichten ignorieren!
             }
 
+            // 🧪 Optional: eigener Callback, z. B. für console.log
             onMessage?.(data);
         });
     }, [onMessage]);
