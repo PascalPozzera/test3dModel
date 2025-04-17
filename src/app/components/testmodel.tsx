@@ -5,11 +5,13 @@ import { useGLTF } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { obstacleRefs } from './GameMap';
+import { useGameSocket } from './useGameSocket';
 
 const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   const group = useRef<THREE.Group>(null);
   const pressedKeys = useRef<Set<string>>(new Set());
   const mouse = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const lastRotationY = useRef<number | null>(null);
   const { camera } = useThree();
 
   useImperativeHandle(ref, () => group.current!, []);
@@ -20,35 +22,29 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   const currentAction = useRef<THREE.AnimationAction | null>(null);
 
   const { scene: characterScene } = useGLTF('/models/character.glb');
-
-  //each character has its own animation, so we need to load them separately from characterservice?
-
-  //walking
   const walkForward = useGLTF('/models/walk_forward.glb');
   const walkBack = useGLTF('/models/walk_forward.glb');
-
-  //idle
   const idle = useGLTF('/models/idle.glb');
-
-  //fire rifle
   const fireRifle = useGLTF('/models/fireRifle.glb');
-
-  //dance moves
-  const dance1 = useGLTF('/models/t.glb')
+  const dance1 = useGLTF('/models/t.glb');
   const dance2 = useGLTF('/models/test.glb');
 
   const animationsMap: Record<string, THREE.AnimationClip[]> = {
     walk_forward: walkForward.animations,
     walk_back: walkBack.animations,
     idle: idle.animations,
-    dance1 : dance1.animations,
-    dance2 : dance2.animations,
+    dance1: dance1.animations,
+    dance2: dance2.animations,
     fireRifle: fireRifle.animations,
   };
 
+  const { send } = useGameSocket((data) => {
+    console.log("Empfangen:", data);
+  });
+
   useEffect(() => {
     if (!group.current) return;
-    group.current.position.set(-20, 0, -8); // irgendwo spawnen wo kein Hindernis ist.
+    group.current.position.set(-20, 0, -8);
     mixer.current = new THREE.AnimationMixer(group.current);
     setTimeout(() => setActiveAnimation('idle'), 0);
     return () => {
@@ -61,11 +57,11 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     const clips = animationsMap[activeAnimation];
     if (!clips || clips.length === 0) return;
     const clip = clips.reduce((longest, current) =>
-      current.duration > longest.duration ? current : longest,
-      clips[0]
+            current.duration > longest.duration ? current : longest,
+        clips[0]
     );
     clip.tracks = clip.tracks.filter(
-      (track) => !track.name.endsWith('.position') || !track.name.includes('Hips')
+        (track) => !track.name.endsWith('.position') || !track.name.includes('Hips')
     );
 
     const action = mixer.current.clipAction(clip);
@@ -94,10 +90,8 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     };
 
     const handleMouseDown = (e: MouseEvent) => {
-      if (e.button === 0) {        
+      if (e.button === 0) {
         setActiveAnimation('fireRifle');
-        
-        
       }
     };
 
@@ -109,6 +103,7 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mousedown', handleMouseDown);
     };
   }, []);
 
@@ -120,16 +115,14 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     const speed = 6;
     const direction = new THREE.Vector3();
 
-    // dance override
     if (pressedKeys.current.has('t')) {
       setActiveAnimation('dance1');
-      return; 
+      return;
     }
 
-    // dance override
     if (pressedKeys.current.has('y')) {
       setActiveAnimation('dance2');
-      return; 
+      return;
     }
 
     if (pressedKeys.current.has('w') || pressedKeys.current.has('ArrowUp')) direction.z -= 1;
@@ -137,13 +130,28 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     if (pressedKeys.current.has('a') || pressedKeys.current.has('ArrowLeft')) direction.x -= 1;
     if (pressedKeys.current.has('d') || pressedKeys.current.has('ArrowRight')) direction.x += 1;
 
+    // --- ROTATION ---
+    const raycaster = new THREE.Raycaster();
+    const mouseVector = new THREE.Vector2(mouse.current.x, mouse.current.y);
+    raycaster.setFromCamera(mouseVector, camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const point = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, point);
+
+    const lookDir = new THREE.Vector3().subVectors(point, pos);
+    const angle = Math.atan2(lookDir.x, lookDir.z);
+    group.current.rotation.y = angle;
+
+    const epsilon = 0.01;
+
+    // --- MOVEMENT ---
     if (direction.lengthSq() > 0) {
       direction.normalize();
       const newPos = pos.clone().addScaledVector(direction, speed * delta);
 
       const characterBox = new THREE.Box3().setFromCenterAndSize(
           newPos,
-          new THREE.Vector3(1, 2, 1) // approximate size
+          new THREE.Vector3(1, 2, 1)
       );
 
       const collides = obstacleRefs.some(ref => {
@@ -155,23 +163,33 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
       if (!collides) {
         pos.copy(newPos);
         setActiveAnimation(direction.z > 0 ? 'walk_back' : 'walk_forward');
-      } else {
-        //setActiveAnimation('idle');
+
+        send({
+          type: 'playerMoved',
+          playerId: 'macbook',
+          x: newPos.x,
+          y: newPos.y,
+          z: newPos.z,
+          rotationY: angle
+        });
+
+        lastRotationY.current = angle;
       }
     } else {
-      //setActiveAnimation('idle');
+      // Nur Drehung im Stand
+      if (Math.abs(angle - (lastRotationY.current ?? 0)) > epsilon) {
+        lastRotationY.current = angle;
+
+        send({
+          type: 'playerMoved',
+          playerId: 'macbook',
+          x: pos.x,
+          y: pos.y,
+          z: pos.z,
+          rotationY: angle
+        });
+      }
     }
-
-    const raycaster = new THREE.Raycaster();
-    const mouseVector = new THREE.Vector2(mouse.current.x, mouse.current.y);
-    raycaster.setFromCamera(mouseVector, camera);
-    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-    const point = new THREE.Vector3();
-    raycaster.ray.intersectPlane(plane, point);
-
-    const lookDir = new THREE.Vector3().subVectors(point, pos);
-    const angle = Math.atan2(lookDir.x, lookDir.z);
-    group.current.rotation.y = angle;
   });
 
   return <primitive ref={group} object={characterScene} scale={2} />;
