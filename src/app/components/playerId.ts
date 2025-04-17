@@ -1,1 +1,7 @@
-export const playerId = crypto.randomUUID(); // oder andere ID
+// playerId.ts
+let id = localStorage.getItem('playerId');
+if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem('playerId', id);
+}
+export const playerId = id;
