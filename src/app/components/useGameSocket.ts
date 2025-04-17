@@ -14,20 +14,23 @@ type IncomingMessage = {
 
 export function useGameSocket(onMessage?: (data: any) => void) {
     const updatePlayer = usePlayerStore((state) => state.updatePlayer);
-    const currentId = getPlayerId();
+    const playerId = getPlayerId();
 
     useEffect(() => {
         gameSocket.connect();
 
         gameSocket.onMessage((data: IncomingMessage) => {
-            if (data.type === 'playerMoved' && data.playerId !== currentId) {
-                updatePlayer({
-                    id: data.playerId,
-                    x: data.x,
-                    y: data.y,
-                    z: data.z,
-                    rotationY: data.rotationY,
-                });
+            if (data.type === 'playerMoved') {
+                if (data.playerId !== playerId) {
+                    updatePlayer({
+                        id: data.playerId,
+                        x: data.x,
+                        y: data.y,
+                        z: data.z,
+                        rotationY: data.rotationY,
+                    });
+                }
+                // 👆 ganz wichtig: eigene Nachrichten ignorieren!
             }
 
             onMessage?.(data);
@@ -36,6 +39,6 @@ export function useGameSocket(onMessage?: (data: any) => void) {
 
     return {
         send: (data: any) => gameSocket.send(data),
-        playerId: currentId
+        playerId
     };
 }

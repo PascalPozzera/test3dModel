@@ -8,9 +8,11 @@ import * as THREE from 'three';
 import GameMap from './components/GameMap';
 import OtherPlayer from "@/app/components/OtherPlayer";
 import { usePlayerStore } from './components/PlayerStore';
+import { useGameSocket } from './components/useGameSocket';
 
 export default function Page() {
     const characterRef = useRef<THREE.Group>(null);
+    const { playerId } = useGameSocket();
     const players = usePlayerStore((state) => state.players);
 
     return (
@@ -21,13 +23,15 @@ export default function Page() {
             <Suspense fallback={null}>
                 <GameMap />
                 <AnimatedCharacter ref={characterRef} />
-                {players.map((player) => (
-                    <OtherPlayer
-                        key={player.id}
-                        position={new THREE.Vector3(player.x, player.y, player.z)}
-                        rotationY={player.rotationY}
-                    />
-                ))}
+                {players
+                    .filter((p) => p.id !== playerId) // <-- Filter hier!
+                    .map((player) => (
+                        <OtherPlayer
+                            key={player.id}
+                            position={new THREE.Vector3(player.x, player.y, player.z)}
+                            rotationY={player.rotationY}
+                        />
+                    ))}
                 <FollowCamera target={characterRef} />
             </Suspense>
         </Canvas>

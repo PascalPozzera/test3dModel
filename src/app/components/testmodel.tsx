@@ -184,7 +184,7 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
 
         send({
           type: 'playerMoved',
-          playerId: 'macbook',
+          playerId,
           x: pos.x,
           y: pos.y,
           z: pos.z,
