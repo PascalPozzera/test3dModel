@@ -1,4 +1,3 @@
-// playerId.ts
 let cachedId: string | null = null;
 
 export function getPlayerId(): string {

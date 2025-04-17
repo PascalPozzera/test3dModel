@@ -38,9 +38,11 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     fireRifle: fireRifle.animations,
   };
 
-  const { send, playerId } = useGameSocket((data) => {
+  const {send, playerId} = useGameSocket((data) => {
     console.log('Empfangen:', data);
   });
+
+
 
 
   useEffect(() => {
