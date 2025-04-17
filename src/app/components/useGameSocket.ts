@@ -1,44 +1,42 @@
-import { useEffect } from 'react';
-import { gameSocket } from './WebSocketClient';
-import { usePlayerStore } from './PlayerStore';
-import { getPlayerId } from './playerId';
+// useGameSocket.ts – verarbeitet eingehende Daten und aktualisiert PlayerStore
+import { useEffect, useRef } from 'react';
+import * as THREE from 'three';
+import { getPlayerStore } from './PlayerStore';
+import { playerId } from './playerId'; // oder '../playerId' je nach Pfadstruktur
 
-type IncomingMessage = {
-    type: 'playerMoved';
-    playerId: string;
-    x: number;
-    y: number;
-    z: number;
-    rotationY: number;
-};
 
-export function useGameSocket(onMessage?: (data: any) => void) {
-    const updatePlayer = usePlayerStore((state) => state.updatePlayer);
-    const playerId = getPlayerId();
+export const useGameSocket = (onMessage?: (data: any) => void) => {
+    const wsRef = useRef<WebSocket | null>(null);
+    const playerStore = getPlayerStore();
 
     useEffect(() => {
-        gameSocket.connect();
+        const ws = new WebSocket('ws://localhost:8080/ws/game');
+        wsRef.current = ws;
 
-        gameSocket.onMessage((data: IncomingMessage) => {
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
             if (data.type === 'playerMoved') {
-                if (data.playerId !== playerId) {
-                    updatePlayer(
-                        {
-                        id: data.playerId,
-                        x: data.x,
-                        y: data.y,
-                        z: data.z,
-                        rotationY: data.rotationY,
-                    });
-                }
+                playerStore.updatePlayer(data.playerId, {
+                    position: new THREE.Vector3(data.x, data.y, data.z),
+                    rotationY: data.rotationY,
+                    timestamp: data.timestamp,
+                });
             }
 
             onMessage?.(data);
-        });
-    }, [onMessage]);
+        };
+
+        return () => {
+            ws.close();
+        };
+    }, []);
 
     return {
-        send: (data: any) => gameSocket.send(data),
-        playerId
+        send: (data: any) => {
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify(data));
+            }
+        },
     };
-}
+};

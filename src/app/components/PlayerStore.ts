@@ -1,23 +1,28 @@
+// PlayerStore.ts – globaler Zustand für alle Spieler
 import { create } from 'zustand';
+import * as THREE from 'three';
 
-export type PlayerData = {
-    id: string;
-    x: number;
-    y: number;
-    z: number;
+type PlayerData = {
+    position: THREE.Vector3;
     rotationY: number;
+    timestamp: number;
 };
 
-type PlayerStore = {
-    players: PlayerData[];
-    updatePlayer: (data: PlayerData) => void;
+type PlayerState = {
+    players: Record<string, PlayerData>;
+    updatePlayer: (id: string, data: PlayerData) => void;
 };
 
-export const usePlayerStore = create<PlayerStore>((set) => ({
-    players: [],
-    updatePlayer: (data) =>
-        set((state) => {
-            const others = state.players.filter((p) => p.id !== data.id);
-            return { players: [...others, data] }; // ✅ ersetzt alten Spieler, behält alle anderen
-        }),
+export const usePlayerStore = create<PlayerState>((set) => ({
+    players: {},
+    updatePlayer: (id, data) =>
+        set((state) => ({
+            players: {
+                ...state.players,
+                [id]: data,
+            },
+        })),
 }));
+
+// Optional: direkter Zugriff außerhalb von React
+export const getPlayerStore = () => usePlayerStore.getState();

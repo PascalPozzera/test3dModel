@@ -6,6 +6,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { obstacleRefs } from './GameMap';
 import { useGameSocket } from './useGameSocket';
+import { playerId } from './playerId';
 
 const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   const group = useRef<THREE.Group>(null);
@@ -39,7 +40,7 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     fireRifle: fireRifle.animations,
   };
 
-  const {send, playerId} = useGameSocket((data) => {});
+  const { send } = useGameSocket();
 
   useEffect(() => {
     if (!group.current) return;
