@@ -18,6 +18,6 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
     updatePlayer: (data) =>
         set((state) => {
             const others = state.players.filter((p) => p.id !== data.id);
-            return { players: [...others, data] };
+            return { players: [...others, data] }; // ✅ ersetzt alten Spieler, behält alle anderen
         }),
 }));

@@ -24,7 +24,7 @@ export default function Page() {
                 <GameMap />
                 <AnimatedCharacter ref={characterRef} />
                 {players
-                    .filter((p) => p.id !== playerId) // <-- Filter hier!
+                    .filter((p) => p.id !== playerId)
                     .map((player) => (
                         <OtherPlayer
                             key={player.id}

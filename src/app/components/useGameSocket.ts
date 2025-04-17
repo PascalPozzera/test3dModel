@@ -20,10 +20,15 @@ export function useGameSocket(onMessage?: (data: any) => void) {
         gameSocket.connect();
 
         gameSocket.onMessage((data: IncomingMessage) => {
-            // ✅ Wichtig: andere Spieler in den Zustand speichern
+            console.log('[RAW] empfangen:', data); // 👈 das hier hinzufügen
             if (data.type === 'playerMoved') {
+                console.log('[WAR] empfangen:', data); // 👈 das hier hinzufügen
+
                 if (data.playerId !== playerId) {
-                    updatePlayer({
+                    console.log('[Store] Spieler wird gespeichert:', data.playerId);
+
+                    updatePlayer(
+                        {
                         id: data.playerId,
                         x: data.x,
                         y: data.y,
@@ -33,7 +38,6 @@ export function useGameSocket(onMessage?: (data: any) => void) {
                 }
             }
 
-            // 🧪 Optional: eigener Callback, z. B. für console.log
             onMessage?.(data);
         });
     }, [onMessage]);
