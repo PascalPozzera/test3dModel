@@ -8,10 +8,25 @@ import * as THREE from 'three';
 import GameMap from './components/GameMap';
 import OtherPlayer from "@/app/components/OtherPlayer";
 import { usePlayerStore } from './components/PlayerStore';
+import { useGameSocket } from './components/useGameSocket'; // import hinzufügen
+
 
 export default function Page() {
     const characterRef = useRef<THREE.Group>(null);
     const players = usePlayerStore((state) => state.players);
+    const { playerId } = useGameSocket(); // hole aktuelle Player-ID
+
+    {players
+        .filter((p) => p.id !== playerId) // <- sich selbst rausfiltern!
+        .map((player) => (
+            <OtherPlayer
+                key={player.id}
+                position={new THREE.Vector3(player.x, player.y, player.z)}
+                rotationY={player.rotationY}
+            />
+        ))}
+
+
 
     return (
         <Canvas shadows>
