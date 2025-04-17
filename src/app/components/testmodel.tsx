@@ -38,9 +38,10 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     fireRifle: fireRifle.animations,
   };
 
-  const { send } = useGameSocket((data) => {
-    console.log("Empfangen:", data);
+  const { send, playerId } = useGameSocket((data) => {
+    console.log('Empfangen:', data);
   });
+
 
   useEffect(() => {
     if (!group.current) return;
@@ -166,12 +167,13 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
 
         send({
           type: 'playerMoved',
-          playerId: 'macbook',
+          playerId,
           x: newPos.x,
           y: newPos.y,
           z: newPos.z,
           rotationY: angle
         });
+
 
         lastRotationY.current = angle;
       }

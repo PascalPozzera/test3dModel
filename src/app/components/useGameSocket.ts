@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
 import { gameSocket } from './WebSocketClient';
 import { usePlayerStore } from './PlayerStore';
-
-const PLAYER_ID = 'macbook'; // kannst du später dynamisch setzen
+import { getPlayerId } from './playerId';
 
 type IncomingMessage = {
     type: 'playerMoved';
@@ -15,12 +14,13 @@ type IncomingMessage = {
 
 export function useGameSocket(onMessage?: (data: any) => void) {
     const updatePlayer = usePlayerStore((state) => state.updatePlayer);
+    const currentId = getPlayerId();
 
     useEffect(() => {
         gameSocket.connect();
 
         gameSocket.onMessage((data: IncomingMessage) => {
-            if (data.type === 'playerMoved' && data.playerId !== PLAYER_ID) {
+            if (data.type === 'playerMoved' && data.playerId !== currentId) {
                 updatePlayer({
                     id: data.playerId,
                     x: data.x,
@@ -34,5 +34,8 @@ export function useGameSocket(onMessage?: (data: any) => void) {
         });
     }, [onMessage]);
 
-    return { send: (data: any) => gameSocket.send(data) };
+    return {
+        send: (data: any) => gameSocket.send(data),
+        playerId: currentId
+    };
 }
