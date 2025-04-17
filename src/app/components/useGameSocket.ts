@@ -20,13 +20,8 @@ export function useGameSocket(onMessage?: (data: any) => void) {
         gameSocket.connect();
 
         gameSocket.onMessage((data: IncomingMessage) => {
-            console.log('[RAW] empfangen:', data); // 👈 das hier hinzufügen
             if (data.type === 'playerMoved') {
-                console.log('[WAR] empfangen:', data); // 👈 das hier hinzufügen
-
                 if (data.playerId !== playerId) {
-                    console.log('[Store] Spieler wird gespeichert:', data.playerId);
-
                     updatePlayer(
                         {
                         id: data.playerId,

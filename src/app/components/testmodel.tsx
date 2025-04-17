@@ -12,6 +12,7 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   const pressedKeys = useRef<Set<string>>(new Set());
   const mouse = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const lastRotationY = useRef<number | null>(null);
+  const lastSendRef = useRef<number>(0);
   const { camera } = useThree();
 
   useImperativeHandle(ref, () => group.current!, []);
@@ -38,9 +39,7 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     fireRifle: fireRifle.animations,
   };
 
-  const {send, playerId} = useGameSocket((data) => {
-    console.log('Empfangen:', data);
-  });
+  const {send, playerId} = useGameSocket((data) => {});
 
   useEffect(() => {
     if (!group.current) return;
@@ -130,7 +129,6 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     if (pressedKeys.current.has('a') || pressedKeys.current.has('ArrowLeft')) direction.x -= 1;
     if (pressedKeys.current.has('d') || pressedKeys.current.has('ArrowRight')) direction.x += 1;
 
-    // --- ROTATION ---
     const raycaster = new THREE.Raycaster();
     const mouseVector = new THREE.Vector2(mouse.current.x, mouse.current.y);
     raycaster.setFromCamera(mouseVector, camera);
@@ -143,8 +141,9 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
     group.current.rotation.y = angle;
 
     const epsilon = 0.01;
+    const now = Date.now();
+    const shouldSend = now - lastSendRef.current > 80;
 
-    // --- MOVEMENT ---
     if (direction.lengthSq() > 0) {
       direction.normalize();
       const newPos = pos.clone().addScaledVector(direction, speed * delta);
@@ -164,31 +163,34 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
         pos.copy(newPos);
         setActiveAnimation(direction.z > 0 ? 'walk_back' : 'walk_forward');
 
-        send({
-          type: 'playerMoved',
-          playerId,
-          x: newPos.x,
-          y: newPos.y,
-          z: newPos.z,
-          rotationY: angle
-        });
-
+        if (shouldSend) {
+          send({
+            type: 'playerMoved',
+            playerId,
+            x: newPos.x,
+            y: newPos.y,
+            z: newPos.z,
+            rotationY: angle,
+            timestamp: now
+          });
+          lastSendRef.current = now;
+        }
 
         lastRotationY.current = angle;
       }
     } else {
-      // Nur Drehung im Stand
-      if (Math.abs(angle - (lastRotationY.current ?? 0)) > epsilon) {
+      if (Math.abs(angle - (lastRotationY.current ?? 0)) > epsilon && shouldSend) {
         lastRotationY.current = angle;
-
         send({
           type: 'playerMoved',
           playerId,
           x: pos.x,
           y: pos.y,
           z: pos.z,
-          rotationY: angle
+          rotationY: angle,
+          timestamp: now
         });
+        lastSendRef.current = now;
       }
     }
   });

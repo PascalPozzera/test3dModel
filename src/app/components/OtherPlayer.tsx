@@ -10,11 +10,11 @@ type Props = {
 
 export default function OtherPlayer({ position, rotationY }: Props) {
     const group = useRef<THREE.Group>(null);
-    const { scene } = useGLTF('/models/character.glb');
+    const { scene } = useGLTF('/models/character2.glb');
 
     useFrame(() => {
         if (group.current) {
-            group.current.position.lerp(position, 0.1);
+            group.current.position.lerp(position, 1);
             group.current.rotation.y = rotationY;
         }
     });
