@@ -2,7 +2,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { getPlayerStore } from './PlayerStore';
-import { playerId } from './playerId'; // oder '../playerId' je nach Pfadstruktur
+import { getPlayerId } from './playerId';
 
 
 export const useGameSocket = (onMessage?: (data: any) => void) => {
@@ -11,6 +11,7 @@ export const useGameSocket = (onMessage?: (data: any) => void) => {
 
     useEffect(() => {
         const ws = new WebSocket('ws://localhost:8080/ws/game');
+        const playerId = getPlayerId();
         wsRef.current = ws;
 
         ws.onmessage = (event) => {

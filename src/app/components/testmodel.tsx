@@ -6,7 +6,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { obstacleRefs } from './GameMap';
 import { useGameSocket } from './useGameSocket';
-import { playerId } from './playerId';
+import { getPlayerId } from './playerId';
 
 const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   const group = useRef<THREE.Group>(null);
@@ -15,6 +15,7 @@ const AnimatedCharacter = forwardRef<THREE.Group>((_, ref) => {
   const lastRotationY = useRef<number | null>(null);
   const lastSendRef = useRef<number>(0);
   const { camera } = useThree();
+  const playerId = getPlayerId();
 
   useImperativeHandle(ref, () => group.current!, []);
 

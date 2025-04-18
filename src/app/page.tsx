@@ -9,12 +9,13 @@ import GameMap from './components/GameMap';
 import OtherPlayer from '@/app/components/OtherPlayer';
 import { usePlayerStore } from './components/PlayerStore';
 import { useGameSocket } from './components/useGameSocket';
-import { playerId } from './components/playerId';
+import { getPlayerId } from './components/playerId';
 
 export default function Page() {
     const characterRef = useRef<THREE.Group>(null);
     useGameSocket();
     const players = usePlayerStore((state) => state.players);
+    const playerId = getPlayerId();
 
     return (
         <Canvas shadows>

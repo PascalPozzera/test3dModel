@@ -1,24 +1,28 @@
 'use client';
 
-import { JSX, useEffect, useMemo, useRef, useState } from 'react';
-import { useFrame, useLoader } from '@react-three/fiber';
+import React, { JSX, useEffect, useMemo, useState } from 'react';
+import { useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Box } from '@react-three/drei';
 import { createSmoothTileMaterial } from '@/shaders/smoothTileBlenderShader';
+import {Mesh} from "three";
 
-export const obstacleRefs: React.RefObject<THREE.Mesh>[] = [];
+// Live binding for obstacle refs to be used elsewhere (e.g., collision detection)
+export let obstacleRefs: React.RefObject<Mesh | null>[] = [];
 
 export default function GameMap() {
     const size = 4;
     const rows = 40;
     const cols = 40;
 
+    // Load textures
     const woodTexture = useLoader(THREE.TextureLoader, '/wood.png');
     const grassTexture = useLoader(THREE.TextureLoader, '/gras.png');
     const desertTexture = useLoader(THREE.TextureLoader, '/desert.png');
 
+    // Setup texture wrapping/filters
     useEffect(() => {
-        [woodTexture, grassTexture, desertTexture].forEach((texture) => {
+        [woodTexture, grassTexture, desertTexture].forEach(texture => {
             texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
             texture.magFilter = THREE.LinearFilter;
             texture.minFilter = THREE.LinearMipMapLinearFilter;
@@ -26,59 +30,51 @@ export default function GameMap() {
         });
     }, [woodTexture, grassTexture, desertTexture]);
 
+    // Generate tile map state
     const [tileMap, setTileMap] = useState<string[][]>([]);
-
-    function generateRandomMap(rows: number, cols: number): string[][] {
-        const map: string[][] = Array.from({ length: rows }, () =>
-            Array.from({ length: cols }, () => 'G') // alles Gras als Default
+    useEffect(() => {
+        const desertDensity = 0.1;
+        const generated: string[][] = Array.from({ length: rows }, () =>
+            Array.from({ length: cols }, () => 'G')
         );
-
-        const desertDensity = 0.1; // Nur 10 % Desert
-        for (let y = 0; y < rows; y++) {
+        for (let z = 0; z < rows; z++) {
             for (let x = 0; x < cols; x++) {
-                if (Math.random() < desertDensity) {
-                    map[y][x] = 'D';
-                }
+                if (Math.random() < desertDensity) generated[z][x] = 'D';
             }
         }
-        return map;
-    }
+        setTileMap(generated);
+    }, [rows, cols]);
 
-    function calcBlender(map: string[][], x: number, z: number): number {
+    // Calculate blend factor for smooth transitions
+    function calcBlender(map: string[][], x: number, z: number) {
         const current = map[z][x];
         if (current === 'G') return 1.0;
-
         const isNearGrass =
             (z > 0 && map[z - 1][x] === 'G') ||
             (z < map.length - 1 && map[z + 1][x] === 'G') ||
             (x > 0 && map[z][x - 1] === 'G') ||
             (x < map[0].length - 1 && map[z][x + 1] === 'G');
-
         return isNearGrass ? 0.5 : 0.0;
     }
 
-    useEffect(() => {
-        const generated = generateRandomMap(rows, cols);
-        setTileMap(generated);
-    }, []);
-
+    // Create tile meshes
     const tiles = useMemo(() => {
         const elements: JSX.Element[] = [];
-
         if (tileMap.length === 0) return elements;
-
-        const startX = -cols / 2;
-        const startZ = -rows / 2;
-
+        const offsetX = -cols / 2;
+        const offsetZ = -rows / 2;
         for (let z = 0; z < tileMap.length; z++) {
             for (let x = 0; x < tileMap[z].length; x++) {
                 const blend = calcBlender(tileMap, x, z);
-                const material = createSmoothTileMaterial(grassTexture, desertTexture, blend);
-
+                const material = createSmoothTileMaterial(
+                    grassTexture,
+                    desertTexture,
+                    blend
+                );
                 elements.push(
                     <mesh
                         key={`tile-${x}-${z}`}
-                        position={[(startX + x) * size, 0, (startZ + z) * size]}
+                        position={[(offsetX + x) * size, 0, (offsetZ + z) * size]}
                     >
                         <boxGeometry args={[size, 0.1, size]} />
                         <primitive object={material} attach="material" />
@@ -86,84 +82,96 @@ export default function GameMap() {
                 );
             }
         }
-
         return elements;
     }, [tileMap, size, grassTexture, desertTexture, cols, rows]);
 
-    const obstaclePositions: [number, number, number][] = [
-        [-4, 1, 0],
-        [0, 1, 0],
-        [4, 1, 0]
-    ];
+    // Define static obstacle positions
+    const obstaclePositions = useMemo< [number, number, number][] >(
+        () => [
+            [-4, 1, 0],
+            [0, 1, 0],
+            [4, 1, 0],
+        ],
+        []
+    );
 
-    const obstacles = obstaclePositions.map((pos, i) => {
-        const ref = useRef<THREE.Mesh>(null!);
-        obstacleRefs.push(ref);
+    // Create refs for obstacles once
+    const obstacleRefsLocal = useMemo(
+        () => obstaclePositions.map(() => React.createRef<THREE.Mesh>()),
+        [obstaclePositions]
+    );
 
-        useFrame(() => {
-            if (ref.current) {
-                ref.current.rotation.y += 0.005;
+    // Define static fence positions (top/bottom + left/right)
+    const fencePositions = useMemo< [number, number, number][] >(
+        () => {
+            const list: [number, number, number][] = [];
+            const halfW = (cols * size) / 2;
+            const halfH = (rows * size) / 2;
+            for (let x = 0; x < cols; x++) {
+                const wx = x * size - halfW + size / 2;
+                list.push([wx, 1, -halfH - size / 2], [wx, 1, halfH + size / 2]);
             }
-        });
+            for (let z = 0; z < rows; z++) {
+                const wz = z * size - halfH + size / 2;
+                list.push([-halfW - size / 2, 1, wz], [halfW + size / 2, 1, wz]);
+            }
+            return list;
+        },
+        [cols, rows, size]
+    );
 
-        return (
-            <mesh key={`obstacle-${i}`} position={pos} ref={ref}>
-                <torusGeometry args={[2, 0.4, 16, 100]} />
-                <meshStandardMaterial
-                    map={woodTexture}
-                    polygonOffset
-                    polygonOffsetFactor={-1}
-                    polygonOffsetUnits={-1}
-                    metalness={0.2}
-                    roughness={0.5}
-                />
-            </mesh>
-        );
-    });
+    // Create refs for fences once
+    const fenceRefsLocal = useMemo(
+        () => fencePositions.map(() => React.createRef<THREE.Mesh>()),
+        [fencePositions]
+    );
 
-    const fenceElements: JSX.Element[] = [];
-    const halfWidth = (cols * size) / 2;
-    const halfHeight = (rows * size) / 2;
+    // Expose combined refs for collision detection
+    useEffect(() => {
+        obstacleRefs = [...obstacleRefsLocal, ...fenceRefsLocal];
+    }, [obstacleRefsLocal, fenceRefsLocal]);
 
-    for (let x = 0; x < cols; x++) {
-        const worldX = x * size - halfWidth + size / 2;
+    // Render obstacle meshes
+    const obstacles = useMemo(
+        () =>
+            obstaclePositions.map((pos, i) => (
+                <mesh key={`obstacle-${i}`} position={pos} ref={obstacleRefsLocal[i]}>
+                    <torusGeometry args={[2, 0.4, 16, 100]} />
+                    <meshStandardMaterial
+                        map={woodTexture}
+                        polygonOffset
+                        polygonOffsetFactor={-1}
+                        polygonOffsetUnits={-1}
+                        metalness={0.2}
+                        roughness={0.5}
+                    />
+                </mesh>
+            )),
+        [obstaclePositions, obstacleRefsLocal, woodTexture]
+    );
 
-        const topRef = useRef<THREE.Mesh>(null!);
-        const bottomRef = useRef<THREE.Mesh>(null!);
-        obstacleRefs.push(topRef, bottomRef);
-
-        fenceElements.push(
-            <Box key={`fence-top-${x}`} ref={topRef} position={[worldX, 1, -halfHeight - size / 2]} args={[size, 2, 0.5]}>
-                <meshStandardMaterial map={woodTexture} />
-            </Box>,
-            <Box key={`fence-bottom-${x}`} ref={bottomRef} position={[worldX, 1, halfHeight + size / 2]} args={[size, 2, 0.5]}>
-                <meshStandardMaterial map={woodTexture} />
-            </Box>
-        );
-    }
-
-    for (let z = 0; z < rows; z++) {
-        const worldZ = z * size - halfHeight + size / 2;
-
-        const leftRef = useRef<THREE.Mesh>(null!);
-        const rightRef = useRef<THREE.Mesh>(null!);
-        obstacleRefs.push(leftRef, rightRef);
-
-        fenceElements.push(
-            <Box key={`fence-left-${z}`} ref={leftRef} position={[-halfWidth - size / 2, 1, worldZ]} args={[0.5, 2, size]}>
-                <meshStandardMaterial map={woodTexture} />
-            </Box>,
-            <Box key={`fence-right-${z}`} ref={rightRef} position={[halfWidth + size / 2, 1, worldZ]} args={[0.5, 2, size]}>
-                <meshStandardMaterial map={woodTexture} />
-            </Box>
-        );
-    }
+    // Render fence meshes
+    const fences = useMemo(
+        () =>
+            fencePositions.map((pos, i) => {
+                const isHorizontal = i < cols * 2;
+                const args: [number, number, number] = isHorizontal
+                    ? [size, 2, 0.5]
+                    : [0.5, 2, size];
+                return (
+                    <Box key={`fence-${i}`} ref={fenceRefsLocal[i]} position={pos} args={args}>
+                        <meshStandardMaterial map={woodTexture} />
+                    </Box>
+                );
+            }),
+        [fencePositions, fenceRefsLocal, woodTexture, size, cols]
+    );
 
     return (
         <group>
             {tiles}
             {obstacles}
-            {fenceElements}
+            {fences}
         </group>
     );
 }
