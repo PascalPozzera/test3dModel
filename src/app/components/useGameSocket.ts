@@ -1,17 +1,13 @@
-// useGameSocket.ts – verarbeitet eingehende Daten und aktualisiert PlayerStore
-import { useEffect, useRef } from 'react';
+import {useEffect, useRef} from 'react';
 import * as THREE from 'three';
-import { getPlayerStore } from './PlayerStore';
-import { getPlayerId } from './playerId';
-
+import {getPlayerStore} from './PlayerStore';
 
 export const useGameSocket = (onMessage?: (data: any) => void) => {
     const wsRef = useRef<WebSocket | null>(null);
     const playerStore = getPlayerStore();
 
     useEffect(() => {
-        const ws = new WebSocket('ws://localhost:8080/ws/game');
-        const playerId = getPlayerId();
+        const ws = new WebSocket('ws://192.168.0.157:8080/ws/game');
         wsRef.current = ws;
 
         ws.onmessage = (event) => {

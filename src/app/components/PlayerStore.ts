@@ -1,4 +1,3 @@
-// PlayerStore.ts – globaler Zustand für alle Spieler
 import { create } from 'zustand';
 import * as THREE from 'three';
 
